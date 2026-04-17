@@ -1,91 +1,42 @@
-<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Hypoy</title><description>人生海海</description><link>https://blog.hypoy.cn/</link><templateTheme>Firefly</templateTheme><templateThemeVersion>6.5.3</templateThemeVersion><templateThemeUrl>https://github.com/CuteLeaf/Firefly</templateThemeUrl><lastBuildDate>2026年4月17日 11:25:27</lastBuildDate><item><title>Claude Code 的 1M Context 不是无限外挂：Session 管理才是关键</title><link>https://blog.hypoy.cn/posts/claude-code-session-management-and-1m-context/</link><guid isPermaLink="true">https://blog.hypoy.cn/posts/claude-code-session-management-and-1m-context/</guid><description>结合 Anthropic 官方文章，整理 Claude Code 在 1M 上下文窗口下的会话管理思路：什么时候继续聊、什么时候该 rewind、什么时候该 compact，以及为什么新任务最好开新 session。</description><pubDate>Fri, 17 Apr 2026 00:00:00 GMT</pubDate><content:encoded>&lt;section&gt;&lt;h1&gt;Claude Code 的 1M Context 不是无限外挂：Session 管理才是关键&lt;a href=&quot;#claude-code-的-1m-context-不是无限外挂session-管理才是关键&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h1&gt;&lt;p&gt;Anthropic 最近发了一篇官方文章：&lt;a href=&quot;https://claude.com/blog/using-claude-code-session-management-and-1m-context&quot;&gt;Using Claude Code: session management and 1M context&lt;/a&gt;。很多人一看标题就容易想歪，以为重点是“1M 上下文终于能无脑全塞了”。真相恰恰相反：&lt;strong&gt;上下文变大之后，真正重要的不是多塞点，而是学会怎么管会话。&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;这篇我不准备逐段翻译，直接把原文里最值得留下的部分拆成更适合日常写代码、写博客、做长期任务的版本。&lt;/p&gt;&lt;section&gt;&lt;h2&gt;1. 先把核心结论说透&lt;a href=&quot;#1-先把核心结论说透&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;原文其实围绕一个特别朴素的事实展开：&lt;strong&gt;上下文窗口再大，垃圾上下文还是垃圾。&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;Claude Code 现在有 1M token 的上下文窗口，这意味着它可以更稳地处理长任务，比如从零搭一个全栈应用，或者在一个复杂代码库里连续干很久。但官方也明确提醒了另一个问题：随着上下文越堆越长，模型会出现 &lt;code&gt;context rot&lt;/code&gt;，也就是注意力被历史噪音分散，性能开始下滑。&lt;/p&gt;&lt;p&gt;说白了就是：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;大上下文让你能做更长的任务&lt;/li&gt;
-&lt;li&gt;但大上下文不代表你应该永远赖在一个 session 里&lt;/li&gt;
-&lt;li&gt;真正决定体验上限的，是你什么时候继续、什么时候回滚、什么时候压缩、什么时候开新会话&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;这才是这篇文章最值钱的地方。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;2. Claude Code 给了你五种分叉动作&lt;a href=&quot;#2-claude-code-给了你五种分叉动作&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Anthropic 在文里把一次回复后的选择讲得很清楚。你让 Claude 干完一件事后，下一步通常有五种路数：&lt;/p&gt;&lt;ol&gt;
-&lt;li&gt;继续在当前 session 里聊&lt;/li&gt;
-&lt;li&gt;用 &lt;code&gt;/rewind&lt;/code&gt; 回到之前的某个消息节点重新来&lt;/li&gt;
-&lt;li&gt;用 &lt;code&gt;/clear&lt;/code&gt; 开一个新 session&lt;/li&gt;
-&lt;li&gt;用 &lt;code&gt;/compact&lt;/code&gt; 把当前会话压缩成摘要后继续&lt;/li&gt;
-&lt;li&gt;把下一段工作交给 subagent，用一块干净上下文单独处理&lt;/li&gt;
-&lt;/ol&gt;&lt;p&gt;这五个东西看着像都能“继续干活”，其实职责完全不一样。很多人平时最容易犯的毛病，就是不管啥情况都只会一种操作：继续接着聊。结果就是会话越聊越脏，最后让模型在一堆历史垃圾里刨答案，活活把自己用废了。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;3. 什么时候继续当前 session&lt;a href=&quot;#3-什么时候继续当前-session&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;官方给的判断标准很直接：&lt;strong&gt;如果还是同一个任务，而且上下文依然有负载价值，就继续。&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;比如下面这些情况，继续当前 session 就很合理：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;还是在修同一个模块&lt;/li&gt;
-&lt;li&gt;刚实现完功能，马上接着补文档&lt;/li&gt;
-&lt;li&gt;还需要反复依赖刚才读过的文件、工具输出和约束条件&lt;/li&gt;
-&lt;li&gt;你知道当前上下文里的大部分信息，下一步还都用得上&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;原因也很现实。你要是这时候硬开新会话，模型就得重新读文件、重新理解上下文，慢不说，还更贵。&lt;/p&gt;&lt;p&gt;所以不要神神叨叨搞“每次提问都开新窗口”的仪式感。那不是严谨，是折腾。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;4. 什么时候该开新 session&lt;a href=&quot;#4-什么时候该开新-session&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;官方给的经验法则很值得记住：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;当你开始一个新任务时，也应该开始一个新 session。&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;这句很简单，但特别容易被忽视。很多人写代码时根本没有“任务边界”这个概念，前一秒还在调鉴权，后一秒突然去修 &lt;code&gt;bar.ts&lt;/code&gt; 里的另一个 warning，接着又让 AI 帮你补 README。任务已经换了，session 却还在一个锅里煮，最后什么都不清楚。&lt;/p&gt;&lt;p&gt;这些情况我建议你果断 &lt;code&gt;/clear&lt;/code&gt;：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;目标已经从 A 功能切到 B 功能&lt;/li&gt;
-&lt;li&gt;当前会话里充满了已经失败的尝试和无关探索&lt;/li&gt;
-&lt;li&gt;你发现模型开始反复引用旧约束、旧结论、旧文件&lt;/li&gt;
-&lt;li&gt;你准备切到另一个子系统，完全是另一套语境&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;新 session 的本质，不是“把上下文清空”，而是&lt;strong&gt;重新定义问题边界&lt;/strong&gt;。你手动写一个简短 briefing，把当前真正重要的约束、文件、已排除方案带过去，反而会更稳。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;5. 出错时，很多时候 &lt;code&gt;rewind&lt;/code&gt; 比“你再试试”更对&lt;a href=&quot;#5-出错时很多时候-rewind-比你再试试更对&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;这是原文里我很认同的一点。&lt;/p&gt;&lt;p&gt;假设 Claude 先读了五个文件，然后走错路了。很多人的第一反应是直接补一句：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;这个方案不行，你换成 B 试试。&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;听起来像在纠偏，实际上你把“错误尝试本身”也留在上下文里了。历史越长，污染越重。&lt;/p&gt;&lt;p&gt;更好的做法通常是：&lt;/p&gt;&lt;ol&gt;
-&lt;li&gt;用 &lt;code&gt;/rewind&lt;/code&gt; 回到读完文件、但还没开始错误实现的地方&lt;/li&gt;
-&lt;li&gt;基于刚学到的信息重新下指令&lt;/li&gt;
-&lt;li&gt;明确告诉它不要再走哪个方向&lt;/li&gt;
-&lt;/ol&gt;&lt;p&gt;这样能保留有价值的文件读取结果，丢掉那坨失败分支。说白了，&lt;strong&gt;rewind 不是撤销情绪，而是剪掉错误历史。&lt;/strong&gt;&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;6. &lt;code&gt;/compact&lt;/code&gt; 和 &lt;code&gt;/clear&lt;/code&gt; 长得像，脑子可不是一回事&lt;a href=&quot;#6-compact-和-clear-长得像脑子可不是一回事&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;这两个特别容易被混着用，官方也专门拆开讲了。&lt;/p&gt;&lt;section&gt;&lt;h3&gt;&lt;code&gt;/compact&lt;/code&gt;&lt;a href=&quot;#compact&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;&lt;code&gt;/compact&lt;/code&gt; 是让模型把当前会话总结成一个更短的摘要，然后基于这个摘要继续干。它的优点是省事，适合中途会话已经很长、但任务本身还没换的情况。&lt;/p&gt;&lt;p&gt;而且你可以给提示，比如：&lt;/p&gt;&lt;div&gt;&lt;figure&gt;&lt;figcaption&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;Terminal window&lt;/span&gt;&lt;/figcaption&gt;&lt;pre&gt;&lt;code&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;1&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;/compact&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;focus&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;on&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;the&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;auth&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;refactor,&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;drop&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;the&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;test&lt;/span&gt;&lt;span&gt; &lt;/span&gt;&lt;span&gt;debugging&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/code&gt;&lt;div&gt;&lt;/div&gt;&lt;/pre&gt;&lt;/figure&gt;&lt;/div&gt;&lt;p&gt;这相当于告诉模型：压缩可以，但别把我要的主线给我压没了。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;&lt;code&gt;/clear&lt;/code&gt;&lt;a href=&quot;#clear&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;&lt;code&gt;/clear&lt;/code&gt; 则更像是你自己重写任务简报。你手动写下：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;现在到底在干什么&lt;/li&gt;
-&lt;li&gt;关键约束是什么&lt;/li&gt;
-&lt;li&gt;相关文件有哪些&lt;/li&gt;
-&lt;li&gt;哪些方案已经被排除&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;然后从一块干净上下文重新开始。&lt;/p&gt;&lt;p&gt;两者最大的区别是：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;/compact&lt;/code&gt;：低成本，把“保留什么”更多交给模型决定&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;/clear&lt;/code&gt;：更费手，但你自己掌控上下文边界&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;如果你问我一句人话版建议：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;任务没变，但会话发胀了，用 &lt;code&gt;/compact&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;任务变了，或者你已经不信任当前上下文了，直接 &lt;code&gt;/clear&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;&lt;/section&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;7. 为什么会出现“坏的 autocompact”&lt;a href=&quot;#7-为什么会出现坏的-autocompact&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;官方提到一个特别真实的坑：&lt;strong&gt;自动 compact 往往发生在上下文最脏、模型状态最差的时候。&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;比如你刚经历了一大段调试，会话被错误日志、失败尝试、临时思路塞满。这个时候如果自动压缩，再加上你下一句突然切去修另一个 warning，模型很可能把那个“顺手提过但没展开”的新问题直接丢掉。&lt;/p&gt;&lt;p&gt;因为压缩本身是有损的，而在 &lt;code&gt;context rot&lt;/code&gt; 已经明显的时候，模型对“接下来哪条线才重要”的判断还会继续变差。&lt;/p&gt;&lt;p&gt;这也是为什么官方建议：&lt;strong&gt;别老等 autocompact 触发，很多时候应该主动 compact。&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;你已经知道下一步要干嘛时，主动给一句方向说明，压缩结果通常会比被动等系统兜底靠谱得多。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;8. subagent 什么时候值回票价&lt;a href=&quot;#8-subagent-什么时候值回票价&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;官方给了一个很实用的判断题：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;这段工具输出你之后还要不要再看，还是你只需要结论？&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;如果答案是“我只要结论”，那这段活就很适合 subagent。&lt;/p&gt;&lt;p&gt;典型场景包括：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;扫整个代码库找某个实现模式&lt;/li&gt;
-&lt;li&gt;对照 spec 做验证&lt;/li&gt;
-&lt;li&gt;根据已有改动补文档&lt;/li&gt;
-&lt;li&gt;跑一轮容易产生大量中间输出的分析任务&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;subagent 的价值不只是“并行”，更关键的是&lt;strong&gt;隔离噪音&lt;/strong&gt;。子任务可以在自己的干净上下文里折腾半天，最后只把结论带回来，主会话不会被一堆中间日志、搜索结果、失败试探撑爆。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;9. 一张够用的选择表&lt;a href=&quot;#9-一张够用的选择表&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;把 Anthropic 这篇文章压成人话，我觉得可以记成下面这张表：&lt;/p&gt;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;场景&lt;/th&gt;&lt;th&gt;优先动作&lt;/th&gt;&lt;th&gt;原因&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;还是同一个任务，当前上下文还都用得上&lt;/td&gt;&lt;td&gt;Continue&lt;/td&gt;&lt;td&gt;不要重复构建上下文&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;模型走错路了，但前面读文件和分析还有价值&lt;/td&gt;&lt;td&gt;&lt;code&gt;/rewind&lt;/code&gt;&lt;/td&gt;&lt;td&gt;保留有效探索，剪掉失败分支&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;任务没变，但 session 已经被调试和探索撑胖了&lt;/td&gt;&lt;td&gt;&lt;code&gt;/compact&lt;/code&gt;&lt;/td&gt;&lt;td&gt;低成本瘦身，继续沿主线推进&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;明显已经是另一个任务&lt;/td&gt;&lt;td&gt;&lt;code&gt;/clear&lt;/code&gt;&lt;/td&gt;&lt;td&gt;重设边界，避免旧上下文继续作妖&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;下一步会产生大量中间输出，而你只关心结论&lt;/td&gt;&lt;td&gt;Subagent&lt;/td&gt;&lt;td&gt;把噪音关进子上下文里&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;10. 我自己的补充判断&lt;a href=&quot;#10-我自己的补充判断&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;官方文章讲的是 Claude Code，但背后的原则其实能外推到几乎所有 AI 编码工具：&lt;/p&gt;&lt;section&gt;&lt;h3&gt;10.1 大上下文不是免死金牌&lt;a href=&quot;#101-大上下文不是免死金牌&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;上下文变大，放大的不只是能力，也会放大噪音、误导和错误惯性。脏会话越长，模型越容易在历史垃圾里反复自我强化。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;10.2 会话管理本质上是信息架构&lt;a href=&quot;#102-会话管理本质上是信息架构&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;你不是在“聊天”，你是在给模型喂一段持续演化的工作记忆。工作记忆的边界、层次和保鲜策略，决定了它后面还能不能稳定干活。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;10.3 很多 AI 用不顺，不是模型不行，是 session 管理太烂&lt;a href=&quot;#103-很多-ai-用不顺不是模型不行是-session-管理太烂&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;人类自己任务切换一塌糊涂，指令含混、上下文失控、失败分支舍不得丢，然后怪模型抽风，这就有点像端着一锅东北乱炖要求人家分辨出哪块是排骨哪块是土豆，纯属为难人。&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;11. 给日常开发的简版 checklist&lt;a href=&quot;#11-给日常开发的简版-checklist&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;如果你平时就想记一套够用的判断法，我建议直接记这个：&lt;/p&gt;&lt;ol&gt;
-&lt;li&gt;新任务，先想要不要新开 session。&lt;/li&gt;
-&lt;li&gt;走错路，优先想 &lt;code&gt;/rewind&lt;/code&gt;，别急着在错误历史上叠补丁。&lt;/li&gt;
-&lt;li&gt;会话发胖但主线没变，主动 &lt;code&gt;/compact&lt;/code&gt;，别等 autocompact 临终总结。&lt;/li&gt;
-&lt;li&gt;大量搜索、验证、写文档这类噪音活，尽量丢给 subagent。&lt;/li&gt;
-&lt;li&gt;每次继续当前 session 前，问自己一句：这里面的信息，下一步是不是大部分还用得上？&lt;/li&gt;
-&lt;/ol&gt;&lt;p&gt;能做到这五条，你对 AI 编码工具的掌控感会比单纯追模型参数提升更明显。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;12. 总结&lt;a href=&quot;#12-总结&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Anthropic 这篇文章最该带走的一句话，不是“Claude Code 有 1M context”，而是：&lt;/p&gt;&lt;p&gt;&lt;strong&gt;1M context 让长任务更可行，但 session 管理才决定长任务会不会越做越糊。&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;真正高效的用法，从来不是把一切都塞进同一个会话里死磕，而是根据任务状态主动选择：&lt;/p&gt;&lt;ul&gt;
-&lt;li&gt;继续&lt;/li&gt;
-&lt;li&gt;rewind&lt;/li&gt;
-&lt;li&gt;compact&lt;/li&gt;
-&lt;li&gt;clear&lt;/li&gt;
-&lt;li&gt;subagent&lt;/li&gt;
-&lt;/ul&gt;&lt;p&gt;把这些动作当成工作流的一部分，你用 Claude Code 才会像在带一个靠谱搭档，而不是在养一个记忆越来越混乱的电子实习生。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;参考链接&lt;a href=&quot;#参考链接&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Hypoy</title><description>人生海海</description><link>https://blog.hypoy.cn/</link><templateTheme>Firefly</templateTheme><templateThemeVersion>6.5.3</templateThemeVersion><templateThemeUrl>https://github.com/CuteLeaf/Firefly</templateThemeUrl><lastBuildDate>2026年4月17日 12:01:07</lastBuildDate><item><title>Claude Code 的 1M Context 怎么用：一篇官方文章的读后整理</title><link>https://blog.hypoy.cn/posts/ai/claude-code-session-management-and-1m-context/</link><guid isPermaLink="true">https://blog.hypoy.cn/posts/ai/claude-code-session-management-and-1m-context/</guid><description>结合 Anthropic 官方文章，整理 Claude Code 里 continue、/rewind、/compact、/clear 和 subagent 的适用场景，尽量讲清什么情况下该延续会话，什么情况下该及时重开。</description><pubDate>Fri, 17 Apr 2026 00:00:00 GMT</pubDate><content:encoded>&lt;section&gt;&lt;h1&gt;Claude Code 的 1M Context 怎么用：一篇官方文章的读后整理&lt;a href=&quot;#claude-code-的-1m-context-怎么用一篇官方文章的读后整理&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h1&gt;&lt;p&gt;最近看了 Anthropic 的一篇官方文章：&lt;a href=&quot;https://claude.com/blog/using-claude-code-session-management-and-1m-context&quot;&gt;Using Claude Code: session management and 1M context&lt;/a&gt;。一开始我以为这篇会重点讲 1M context 本身，比如到底能塞多少、能不能直接把整个项目一股脑扔进去。结果看完之后发现，文章真正想讲的不是“上下文变大了”，而是&lt;strong&gt;会话怎么管&lt;/strong&gt;。&lt;/p&gt;&lt;p&gt;这点其实挺好理解。上下文窗口变大，确实能让 Claude Code 持续处理更长的任务，但会话一长，里面也会混进越来越多已经没用的信息。任务换了、方案试错过了、日志看完了，这些东西如果一直留在上下文里，后面继续问的时候反而容易把模型带偏。&lt;/p&gt;&lt;p&gt;所以这篇我不打算按原文顺着翻，而是按“日常怎么用”这个角度，把我觉得最值得留下的几个点重新整理一遍。&lt;/p&gt;&lt;section&gt;&lt;h2&gt;1. 官方文章到底在提醒什么&lt;a href=&quot;#1-官方文章到底在提醒什么&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;原文里反复在讲一件事：Claude Code 现在上下文更大了，能处理更长的工作流，这当然是好事；但会话不是越长越好，长到一定程度之后，注意力会被历史内容分散，效果会慢慢往下掉。&lt;/p&gt;&lt;p&gt;也就是说，1M context 的价值不是“以后都不用管上下文了”，而是给了你更大的操作空间。以前可能稍微做长一点就顶不住，现在能做的事情更多，但前提还是你得知道什么时候继续沿着当前会话走，什么时候应该收一收，甚至直接换一个新 session。&lt;/p&gt;&lt;p&gt;如果只记一句话，我觉得可以记这个：&lt;/p&gt;&lt;p&gt;&lt;strong&gt;大上下文让长任务更可行，但不会自动帮你把长任务管好。&lt;/strong&gt;&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;2. Claude Code 里这几个动作，最好分清&lt;a href=&quot;#2-claude-code-里这几个动作最好分清&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;原文里提到的几个动作，平时其实都能用到：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;继续在当前 session 里往下做&lt;/li&gt;
+&lt;li&gt;用 &lt;code&gt;/rewind&lt;/code&gt; 回到前面的某个节点&lt;/li&gt;
+&lt;li&gt;用 &lt;code&gt;/clear&lt;/code&gt; 重新开始一个会话&lt;/li&gt;
+&lt;li&gt;用 &lt;code&gt;/compact&lt;/code&gt; 压缩当前上下文&lt;/li&gt;
+&lt;li&gt;把一部分工作交给 subagent&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;这几个动作看起来都像“继续干活”，但作用不一样。&lt;/p&gt;&lt;p&gt;我自己读完之后的理解是：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;continue&lt;/code&gt; 适合同一件事接着做&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;/rewind&lt;/code&gt; 适合“前面读文件没问题，但后面走偏了”&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;/compact&lt;/code&gt; 适合任务没变，但会话已经变长了&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;/clear&lt;/code&gt; 适合任务边界已经变了&lt;/li&gt;
+&lt;li&gt;subagent 适合那些中间过程很长、但你最后只关心结论的活&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;如果平时不刻意区分，最容易出现的情况就是无论什么事都在一个窗口里硬聊。短期看省事，后面会越来越乱。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;3. 什么情况下可以继续当前 session&lt;a href=&quot;#3-什么情况下可以继续当前-session&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;这一点原文讲得比较明确：如果你还在做同一个任务，而且前面的上下文对下一步仍然有帮助，那就没必要重新开。&lt;/p&gt;&lt;p&gt;比如：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;还在改同一个模块&lt;/li&gt;
+&lt;li&gt;刚实现完一段逻辑，接着补测试或文档&lt;/li&gt;
+&lt;li&gt;前面刚读过的文件、约束、命令输出，下一步还要继续用&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;这种情况下强行开新会话，反而要重新解释一遍背景，既慢，也容易漏掉刚才已经确认好的信息。&lt;/p&gt;&lt;p&gt;所以问题不在于“会话是不是长”，而在于“前面的内容现在还有没有用”。如果还有用，继续当前 session 是合理的。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;4. 什么时候应该开新 session&lt;a href=&quot;#4-什么时候应该开新-session&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;原文里有一句我觉得特别实用：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;当你开始一个新任务时，也应该开始一个新的 session。&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;这句话听着简单，但实际很容易忽略。很多时候我们会在一个会话里连续切任务，比如前面还在调接口，后面顺手去改 README，再往后又开始查另一个 warning。人自己知道已经换题了，但模型看到的还是一整段连续上下文。&lt;/p&gt;&lt;p&gt;下面这些场景，我会更倾向于直接开新会话：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;当前任务已经明显结束，后面是另一件事&lt;/li&gt;
+&lt;li&gt;前面试过不少失败方案，会话里混了很多无效尝试&lt;/li&gt;
+&lt;li&gt;你已经开始怀疑模型还在受前面旧结论影响&lt;/li&gt;
+&lt;li&gt;接下来要处理的是另一个子系统，文件和约束都换了一套&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;新 session 的成本没有想象中高。很多时候只要你在开头写一个简短的交代，把当前目标、涉及文件、关键限制说清楚，效果反而比硬接着聊更稳。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;5. 为什么 &lt;code&gt;rewind&lt;/code&gt; 常常比“你换个方案再试试”更有用&lt;a href=&quot;#5-为什么-rewind-常常比你换个方案再试试更有用&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;这一点我觉得是原文里最容易被忽略，但实际特别有用的地方。&lt;/p&gt;&lt;p&gt;假设 Claude 前面已经把相关文件读了，也理解了背景，但后面的实现思路走偏了。这时候最常见的做法是直接补一句：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;这个方向不对，换一种方式做。&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;问题在于，那段错误尝试还在会话里。你虽然口头上纠偏了，但历史上下文没有变干净。&lt;/p&gt;&lt;p&gt;&lt;code&gt;/rewind&lt;/code&gt; 的价值就在这里。它不是简单“撤销”，而是把会话回到还没走偏的地方，保留前面已经有用的阅读和分析结果，把后面那段错误路径剪掉。这样重新开始，往往比在错误路径上继续补指令更省事。&lt;/p&gt;&lt;p&gt;如果说得再直白一点：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;文件已经读对了，方向后来走歪了，用 &lt;code&gt;/rewind&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;从头到尾都已经聊乱了，直接新开 session&lt;/li&gt;
+&lt;/ul&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;6. &lt;code&gt;/compact&lt;/code&gt; 和 &lt;code&gt;/clear&lt;/code&gt; 的差别，最好别混着用&lt;a href=&quot;#6-compact-和-clear-的差别最好别混着用&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;这两个命令特别容易混。&lt;/p&gt;&lt;p&gt;&lt;code&gt;/compact&lt;/code&gt; 更像是“把当前会话压缩一下，再接着做”。它适合任务本身没变，但上下文已经很长的情况。你还想延续这条主线，只是不想把所有细枝末节都继续背在身上。&lt;/p&gt;&lt;p&gt;比如原文里提到，你可以给 &lt;code&gt;/compact&lt;/code&gt; 一点提示，让它在压缩时保留哪条主线，少带哪些无关内容。这个思路挺实用，因为会话一长，最怕的不是信息少，而是重要信息和不重要信息混在一起。&lt;/p&gt;&lt;p&gt;&lt;code&gt;/clear&lt;/code&gt; 就不一样了。它更适合任务已经变了，或者你已经不信任当前上下文的时候。这个时候与其让模型在旧会话基础上“尽量忘掉”，不如你自己重新起一个头，把新的任务背景交代清楚。&lt;/p&gt;&lt;p&gt;我的理解可以简单归成一句：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;任务没变，但会话太长了，用 &lt;code&gt;/compact&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;任务已经换了，或者上下文已经脏了，用 &lt;code&gt;/clear&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;7. 原文提到的 autocompact，为什么要小心&lt;a href=&quot;#7-原文提到的-autocompact为什么要小心&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;文章里还提到一个点：自动 compact 并不总是靠谱，尤其是在会话已经很乱的时候。&lt;/p&gt;&lt;p&gt;这个很好理解。自动压缩本质上还是一次“有损整理”。如果会话里已经塞了很多调试日志、失败方案和临时分支，那压缩时就一定会发生取舍。问题是，模型在上下文本来就有点发散的时候，未必总能替你选对“哪些该留、哪些该丢”。&lt;/p&gt;&lt;p&gt;所以我的感受是：与其等它在最后帮你自动兜底，不如在你自己还清楚主线的时候，主动决定要不要 compact。一旦你自己都已经感觉会话开始发涨，通常就该动手了。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;8. subagent 最适合干什么&lt;a href=&quot;#8-subagent-最适合干什么&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;原文对 subagent 的一个判断标准，我觉得很实用：看这段任务的中间过程你后面还要不要反复参考。&lt;/p&gt;&lt;p&gt;如果你只关心结论，不关心过程，那这类任务通常就适合交给 subagent。&lt;/p&gt;&lt;p&gt;比如：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;扫一遍代码库，找某种模式是不是已经存在&lt;/li&gt;
+&lt;li&gt;对照已有 spec 或需求做检查&lt;/li&gt;
+&lt;li&gt;跑一轮会产生很多中间输出的分析任务&lt;/li&gt;
+&lt;li&gt;补文档、整理说明这类相对独立的事情&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;这样做的好处不是“更高级”，而是主会话会干净很多。子任务在自己的上下文里折腾，最后把结果带回来，主线不容易被大量中间输出冲散。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;9. 我看完之后，觉得最值得记住的三点&lt;a href=&quot;#9-我看完之后觉得最值得记住的三点&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;第一，&lt;strong&gt;别把 1M context 理解成“以后都不用管上下文了”&lt;/strong&gt;。它解决的是容量问题，不是信息筛选问题。&lt;/p&gt;&lt;p&gt;第二，&lt;strong&gt;任务边界要比会话长度更重要&lt;/strong&gt;。同一个任务，聊长一点没关系；任务一旦换了，旧上下文留得越多，越容易互相干扰。&lt;/p&gt;&lt;p&gt;第三，&lt;strong&gt;很多时候不是模型不会做，而是会话里已经混进了太多早该丢掉的东西&lt;/strong&gt;。这一点在长时间调试、频繁试错的时候特别明显。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;10. 总结&lt;a href=&quot;#10-总结&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;如果只从使用层面看，这篇官方文章想讲的其实很朴素：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;同一个任务，能继续就继续&lt;/li&gt;
+&lt;li&gt;走偏了但前面的阅读还有效，优先考虑 &lt;code&gt;/rewind&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;任务没变但会话太长了，可以用 &lt;code&gt;/compact&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;任务换了，就别硬接着聊，直接新开&lt;/li&gt;
+&lt;li&gt;中间过程很吵、但你只想拿结论的事，交给 subagent&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;这些东西听起来不复杂，但真到了长任务里，差别会很明显。以前我也会把“上下文大”直接理解成“那就一直聊下去”，看完原文之后反而更觉得，大上下文不是让人偷懒的，而是给你更多空间去做取舍。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;参考链接&lt;a href=&quot;#参考链接&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
 &lt;li&gt;原文：&lt;a href=&quot;https://claude.com/blog/using-claude-code-session-management-and-1m-context&quot;&gt;Using Claude Code: session management and 1M context&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;&lt;/section&gt;&lt;/section&gt;</content:encoded></item><item><title>个人大模型后端基础设施：CLI Proxy + New API 搭建指南</title><link>https://blog.hypoy.cn/posts/cli-proxy-new-api-setup-guide/</link><guid isPermaLink="true">https://blog.hypoy.cn/posts/cli-proxy-new-api-setup-guide/</guid><description>记录如何通过 CLI Proxy API 聚合第三方公益站资源，并结合 New API 实现企业级的多渠道分发与额度管理，构建稳健的 AI 中转后端。</description><pubDate>Wed, 04 Mar 2026 00:00:00 GMT</pubDate><content:encoded>&lt;section&gt;&lt;h1&gt;个人大模型后端基础设施：CLI Proxy + New API 进阶搭建指南&lt;a href=&quot;#个人大模型后端基础设施cli-proxy--new-api-进阶搭建指南&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h1&gt;&lt;section&gt;&lt;h2&gt;1. 为什么选择这套架构？&lt;a href=&quot;#1-为什么选择这套架构&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;在管理多个三方公益站（如 Codex 等）时，我们需要一个“中间层”来统一协议和流量。&lt;/p&gt;&lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;CLI Proxy API (CPA)&lt;/strong&gt;：作为&lt;strong&gt;协议转换器&lt;/strong&gt;。它能将各种非标、碎片的 API Key（如 Codex 普号转出的 Key）统一封装成标准的 OpenAI 接口，并提供一个管理面板。&lt;/li&gt;
