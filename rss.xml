@@ -1,4 +1,161 @@
-<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Hypoy</title><description>人生海海</description><link>https://blog.hypoy.cn/</link><templateTheme>Firefly</templateTheme><templateThemeVersion>6.16.4</templateThemeVersion><templateThemeUrl>https://github.com/CuteLeaf/Firefly</templateThemeUrl><lastBuildDate>2026年9月14日 14:06:30</lastBuildDate><item><title>GPT-6 Astra 换上来之后，我把 skill 删到只剩一个</title><link>https://blog.hypoy.cn/posts/gpt-6/</link><guid isPermaLink="true">https://blog.hypoy.cn/posts/gpt-6/</guid><description>GPT-6 Astra 的文档里点了一句：新模型对 skill 和 AGENTS.md 里的指令更敏感，建议审计模型能读到的所有指令文件。我照这句话把两边的 skill 目录过了一遍，最后只留下 grill-me。</description><pubDate>Mon, 14 Sep 2026 00:00:00 GMT</pubDate><content:encoded>&lt;section&gt;&lt;h1&gt;GPT-6 Astra 换上来之后，我把 skill 删到只剩一个&lt;a href=&quot;#gpt-6-astra-换上来之后我把-skill-删到只剩一个&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h1&gt;&lt;p&gt;把模型换成 gpt-6-astra 之后，我做的第一件事是打开 skill 目录删东西。&lt;/p&gt;&lt;p&gt;原因在官方那份 model guidance 里，有一段话直接点到 skill：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;GPT-6 Astra is stronger at general instruction following than our previous models, giving you greater control over its behavior. It can be more sensitive to instructions contained in skills and other files, such as AGENTS.md. We strongly recommend auditing skills and other files accessible to your model for instructions that could influence its behavior.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;以前看到这种话我是跳过的，觉得属于官方的免责声明。这次没有跳，因为紧跟着的一句把后果说明了：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;unclear or conflicting guidance in a skill file may cause the model to pause and block work early.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;模型干着干着停下来、活卡在半路，这种事我以前都算在模型头上。文档的意思是，那可能是我的 skill 文件在起作用。&lt;/p&gt;&lt;section&gt;&lt;h2&gt;我的目录里有什么&lt;a href=&quot;#我的目录里有什么&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;&lt;code&gt;~/.codex/skills&lt;/code&gt; 22 个目录，&lt;code&gt;~/.claude/skills&lt;/code&gt; 9 个。gsap 一家占了 8 个（core、timeline、scrolltrigger、react、plugins、performance、frameworks、utils），obsidian 4 个，剩下是 defuddle、pdf、figma、json-canvas、markdown-to-pdf、summary-skill 这些，其中 pdf 和 figma 是指向 &lt;code&gt;~/.cc-switch/skills&lt;/code&gt; 的软链接。&lt;/p&gt;&lt;p&gt;按文档的口径，这些得分两类看。gsap、obsidian 那种是给模型补知识的，会过期，但不管模型什么时候停。需要审的是规定模型什么时候停、什么时候问、什么时候动手的那几个。&lt;/p&gt;&lt;p&gt;我目录里就有个现成的例子，一件事写了三遍：&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Hypoy</title><description>人生海海</description><link>https://blog.hypoy.cn/</link><templateTheme>Firefly</templateTheme><templateThemeVersion>6.16.4</templateThemeVersion><templateThemeUrl>https://github.com/CuteLeaf/Firefly</templateThemeUrl><lastBuildDate>2026年9月16日 17:35:01</lastBuildDate><item><title>《背包乱斗》机制拆解：异步对战、资源分配、构筑取舍，以及它给 AI 时代的启发</title><link>https://blog.hypoy.cn/posts/game/backpack-battles-mechanics-teardown/</link><guid isPermaLink="true">https://blog.hypoy.cn/posts/game/backpack-battles-mechanics-teardown/</guid><description>把 Backpack Battles 拆开看：异步对战如何把 PvP 变成一道离线优化题，金币/格子/回合/血量四种资源的真实兑换关系，构筑取舍背后的协同图与成长曲线，以及这套机制映射回 AI 时代能给我们什么启发。</description><pubDate>Wed, 16 Sep 2026 00:00:00 GMT</pubDate><content:encoded>&lt;section&gt;&lt;h1&gt;《背包乱斗》机制拆解：异步对战、资源分配、构筑取舍，以及它给 AI 时代的启发&lt;a href=&quot;#背包乱斗机制拆解异步对战资源分配构筑取舍以及它给-ai-时代的启发&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h1&gt;&lt;p&gt;最近迷上了《背包乱斗》（Backpack Battles）。表面上它是个「把道具塞进背包格子里」的休闲摆放游戏，但真正让我着迷的不是摆放的手感，而是它底下那套非常干净的设计骨架：&lt;strong&gt;异步对战 + 资源分配 + 构筑取舍&lt;/strong&gt;。&lt;/p&gt;&lt;p&gt;这篇不写数值攻略，只想把它拆开看看——这套系统为什么好玩，每一处设计换来了什么，又付出了什么代价。最后一章我会把这些机制映射回 AI 时代：因为写着写着我发现，玩家在背包里做的事，和我每天在做的上下文编排与 agent 调度，几乎是同一道题。&lt;/p&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;版本背景&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;开发/发行商 PlayWithFurcifer，2024-03-07 以抢先体验上线 Steam，2025-06-13 发布 1.0 正式版（新增 Mage、Adventurer 两个职业），2026 年初推出手机版，目前版本 1.1.x。&lt;/p&gt;&lt;p&gt;下文机制描述基于这一阶段的公开资料与个人游玩体验。&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;section&gt;&lt;h2&gt;一、先看骨架：一局游戏在循环什么&lt;a href=&quot;#一先看骨架一局游戏在循环什么&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;剥掉美术和音效，一局就是一段重复的循环：&lt;/p&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;胜&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;负&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;准备阶段&lt;br /&gt;&lt;br /&gt;买 / 摆 / 合成&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;自动战斗&lt;br /&gt;&lt;br /&gt;我的背包 vs 对手快照&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;结算&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;金币收入 + 血量增长&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;掉血&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;进入下一回合&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;胜&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;负&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;准备阶段&lt;br /&gt;&lt;br /&gt;买 / 摆 / 合成&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;自动战斗&lt;br /&gt;&lt;br /&gt;我的背包 vs 对手快照&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;结算&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;金币收入 + 血量增长&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;掉血&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;进入下一回合&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;准备阶段&lt;/strong&gt;：商店里有 5 件商品，用金币购买，然后把物品放进背包格子；相邻摆放的物品会自动合成、会互相激活协同。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;自动战斗&lt;/strong&gt;：点下开始，你的背包对上另一个玩家的背包，全程自动结算——物品按各自的冷却时间触发，你只能看着。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结算&lt;/strong&gt;：分胜负、掉血、拿下一回合的收入，然后重复。&lt;/li&gt;
+&lt;/ol&gt;&lt;p&gt;标准赛程是&lt;strong&gt;最多 18 回合&lt;/strong&gt;，拿到 &lt;strong&gt;10 胜&lt;/strong&gt;就算达成胜利（之后可以选择继续打 Survival 模式，撑不到第 18 回合会输掉全部）。血量池和每回合收入都随回合数增长——第 1 回合只有 25 点血、13 金币，到第 18 回合会涨到 350 点血。&lt;/p&gt;&lt;p&gt;这个循环里有一个非常关键的&lt;strong&gt;职责分离&lt;/strong&gt;：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;决策全部发生在准备阶段&lt;/strong&gt;，而且没有倒计时——排位和休闲模式都没有时间限制，你可以盯着屏幕想十分钟。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;战斗阶段没有任何操作空间&lt;/strong&gt;，它只是对你此前所有决策的一次「结算」。&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;换句话说，游戏的乐趣不在战斗，而在&lt;strong&gt;战斗之前那段纯粹的规划&lt;/strong&gt;。战斗是给你看的反馈，是验证你决策对错的一次「编译」。这点很反直觉：多数对抗游戏的爽感来自操作，而这个游戏的爽感来自「我的设计跑通了」。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;二、支点一：异步对战——把 PvP 变成一道离线优化题&lt;a href=&quot;#二支点一异步对战把-pvp-变成一道离线优化题&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;你打的是「另一个玩家」，更准确地说，是&lt;strong&gt;另一个玩家留下的已保存构筑快照&lt;/strong&gt;。对面此刻可能已经关掉游戏去上班了，他的背包作为一份数据，被反复调用进别人的对局里。&lt;/p&gt;&lt;p&gt;官方文档里的说法很直白：「用真实玩家的构筑对战」。而匹配是有规则的：&lt;strong&gt;按技巧/排位分段匹配，同时兼顾回合进度&lt;/strong&gt;——开发者在早期版本还专门修过「前几个回合就撞上后期对手」的 bug。这条修正很能说明问题：异步对战要想公平，&lt;strong&gt;必须把「时间」这个维度放进匹配条件里&lt;/strong&gt;，否则新手第一次开局就会被满配体系劝退。&lt;/p&gt;&lt;p&gt;这一个设计决定，顺手解决掉同步 PvP 的一堆麻烦：&lt;/p&gt;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;维度&lt;/th&gt;&lt;th&gt;同步实时对战&lt;/th&gt;&lt;th&gt;异步快照对战&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;等待成本&lt;/td&gt;&lt;td&gt;必须匹配到人，网络差就崩&lt;/td&gt;&lt;td&gt;永远有对手，秒开&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;工程复杂度&lt;/td&gt;&lt;td&gt;双端状态同步、帧同步、断线重连&lt;/td&gt;&lt;td&gt;只需存一份构筑数据，战斗可重放&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;公平性&lt;/td&gt;&lt;td&gt;受延迟、设备、状态影响&lt;/td&gt;&lt;td&gt;双方条件一致，赢就是赢&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;归因&lt;/td&gt;&lt;td&gt;容易甩锅给队友和网速&lt;/td&gt;&lt;td&gt;只能怪自己的构筑&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;时间压力&lt;/td&gt;&lt;td&gt;对手在等你&lt;/td&gt;&lt;td&gt;无限思考时间，随时暂停&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;为什么它这么让人上头&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;最容易被忽略的是&lt;strong&gt;归因清晰&lt;/strong&gt;这一条。输了的时候你没有任何外部借口可找：对面构筑比你强，或者你摆错了。这种「输得明白」会让人立刻想再来一局，而不是摔手机。&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;更有意思的是，构筑快照&lt;strong&gt;可以跨版本留存&lt;/strong&gt;，游戏里还能回看历史对局里出现过的构筑并「再战」。于是你的构筑不只是这一局的工具，它成了一个可以被后来的玩家反复审视的作品——&lt;strong&gt;异步对战顺手把对局变成了社区资产&lt;/strong&gt;，这也是各种流派能迅速传播的原因。&lt;/p&gt;&lt;p&gt;但它也有代价，而且是真实付掉的代价：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;没有读人，也没有当场反制&lt;/strong&gt;。你无法观察对手的习惯、无法做针对性的心理博弈——对手只是一套参数。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;对抗感靠「展示」来补&lt;/strong&gt;。看到对面那个离谱的构筑时你会被震住，这是它用来替换「与人斗」乐趣的东西。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;缺少临场紧张感&lt;/strong&gt;。既然没有计时器，操作层面是零压力，节奏全靠自律。（官方后来加了带房间码、可配回合时限的 Lobby 模式给主播和朋友玩，但那是补充，异步才是主菜。）&lt;/li&gt;
+&lt;/ul&gt;&lt;p&gt;所以它并&lt;strong&gt;不是把 PvP 做轻了，而是把博弈层面从「操作」整体搬到了「构筑」&lt;/strong&gt;。博弈没消失，只是换了个发生的地方。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;三、支点二：资源分配——你其实在同时管四种货币&lt;a href=&quot;#三支点二资源分配你其实在同时管四种货币&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;这是我认为这个游戏最值得学的地方。表面上你只有金币，实际上每一回合你都在四种不同货币之间做兑换。&lt;/p&gt;&lt;p&gt;&lt;strong&gt;1. 金币（唯一能增量的经济资源）&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;它最反直觉的一点是：&lt;strong&gt;这游戏没有利息&lt;/strong&gt;。钱不产生复利，你留着就是纯粹留着。那为什么还要存钱？因为&lt;strong&gt;商店的稀有度随回合提升&lt;/strong&gt;——第 1 回合九成商品是最普通的品质，越往后越容易出现高品质物品。&lt;/p&gt;&lt;p&gt;这就把「花光还是存钱」变成一道很漂亮的题：早花钱能立刻变强、吃连胜和血量优势；晚花钱能用同样的金币买到质量更高的东西。&lt;strong&gt;存钱的收益不是利息，而是「等更好的货」&lt;/strong&gt;——一种对未来的看涨期权。&lt;/p&gt;&lt;p&gt;而花钱本身也有明码标价：商店刷新前 4 次每次 1 金、之后每次 2 金；卖出物品只返还半价。所以「花金币刷新」本质上是用金币&lt;strong&gt;购买方差&lt;/strong&gt;（赌出现更好的选项），而半价回收则设定了你试错的成本下限。&lt;/p&gt;&lt;p&gt;&lt;strong&gt;2. 背包格子（最稀缺、且不会自动增长的空间资源）&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;它才是真正的瓶颈。物品有形状、占多格，格子总共 63 格，但初始只解锁 12–14 格，&lt;strong&gt;而且不会随回合自动扩容——想变多只能花钱买背包类物品&lt;/strong&gt;。&lt;/p&gt;&lt;p&gt;于是每买一件东西，你付出的不只是金币，还有**「这块空间本可以放别的东西」的机会成本**。评估物品要看「单位格子的收益」，而不是绝对数值。更妙的是：&lt;strong&gt;重排和旋转不要钱&lt;/strong&gt;。这意味着摆放是个可以无限重试的纯静态优化问题，你不需要为「试一下」付费，真正稀缺的是格子本身，而不是操作次数。&lt;/p&gt;&lt;p&gt;&lt;strong&gt;3. 回合数（时间资源）&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;18 回合的确定终点、第 8 回合解锁职业分支、第 3/10 回合能买技能——这些都是硬性的节奏刻度。第 1 回合能买的东西和第 10 回合完全不同，这不是平衡问题，而是&lt;strong&gt;节奏设计&lt;/strong&gt;：早期强势的构筑要吃满前段收益，后期体系必须撑过前期。&lt;/p&gt;&lt;p&gt;&lt;strong&gt;4. 血量（可以被主动透支的容错资源）&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;血量池随回合增长，失败会掉血，血量归零就出局。它最精妙的地方在于：血量&lt;strong&gt;可以被主动花掉&lt;/strong&gt;。你可以在前期故意少投入、放弃几局，用掉的血换经济上的领先，赌自己在后半程补齐。在这里血量不是生存指标，而是一种&lt;strong&gt;可透支的信用额度&lt;/strong&gt;。&lt;/p&gt;&lt;p&gt;把四个维度放一起看，每一次点击都是一次兑换：&lt;/p&gt;&lt;div&gt;&lt;figure&gt;&lt;figcaption&gt;&lt;span&gt;每一次点击，都是一次兑换&lt;/span&gt;&lt;/figcaption&gt;&lt;pre&gt;&lt;code&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;1&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;刷新商店       1 金   -&amp;gt;  买入「方差」（而且越刷越贵）&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;2&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;买下装备       4 格   -&amp;gt;  买入「强度」（同时冻结了未来的空间）&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;3&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;憋钱不出手     掉血风险 -&amp;gt;  买入「后面的选择权」&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/code&gt;&lt;/pre&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/figure&gt;&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;这一节的核心&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;没有一种资源能单独决定胜负，但每一种都稀缺到需要你做出取舍——这就是「资源分配」这类系统的通用判据。&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;四、支点三：构筑取舍——协同图与成长曲线&lt;a href=&quot;#四支点三构筑取舍协同图与成长曲线&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;物品强不强，取决于它旁边放了什么。《背包乱斗》的聪明之处是&lt;strong&gt;把协同关系直接映射到了空间上&lt;/strong&gt;：很多物品身上带 ★ / ♦ 这类槽位，只有&lt;strong&gt;相邻&lt;/strong&gt;放着对应类型的物品才会被激活；合成也是把配方物品摆在一起，下一个商店阶段自动完成；宝石则要嵌入物品的插槽里。&lt;/p&gt;&lt;p&gt;依赖不再是抽象数值，而是「这两样东西得挨着」。&lt;strong&gt;摆放即编程，格子就是你的依赖图&lt;/strong&gt;——而且这题的规模小到可以靠直觉求解，所以你会在不知不觉中做优化，还觉得很爽。&lt;/p&gt;&lt;p&gt;由此产生了三种典型的构筑路线，本质上是三种&lt;strong&gt;成长曲线&lt;/strong&gt;：&lt;/p&gt;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;路线&lt;/th&gt;&lt;th&gt;前段（约 1–6 回合）&lt;/th&gt;&lt;th&gt;中后段&lt;/th&gt;&lt;th&gt;主要风险&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;&lt;strong&gt;节奏流&lt;/strong&gt;（前期强势型）&lt;/td&gt;&lt;td&gt;强，靠基础数值吃连胜&lt;/td&gt;&lt;td&gt;变平，成长靠换代&lt;/td&gt;&lt;td&gt;体系一成，后期被打穿&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;strong&gt;缩放流&lt;/strong&gt;（协同放大器型）&lt;/td&gt;&lt;td&gt;弱，需要忍&lt;/td&gt;&lt;td&gt;陡升，乘算收益爆发&lt;/td&gt;&lt;td&gt;组件不齐时就是负资产&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;strong&gt;经营流&lt;/strong&gt;（经济经营型）&lt;/td&gt;&lt;td&gt;弱，掉血换钱&lt;/td&gt;&lt;td&gt;关键回合一次性补齐&lt;/td&gt;&lt;td&gt;方差最大，可能一直等不到货&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;p&gt;理解这三条曲线的意义在于：&lt;strong&gt;你输给别人的时候，往往不是你不够强，而是你们正处在曲线上的不同位置&lt;/strong&gt;。第 4 回合的强度和第 12 回合的强度是两种东西。&lt;/p&gt;&lt;p&gt;由此引出三个实战里最贵的判断：&lt;/p&gt;&lt;p&gt;&lt;strong&gt;① 承诺成本与体系完整性&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;乘算协同的收益是凸的——「一整套体系」的收益远大于「半套体系之和」：&lt;/p&gt;&lt;p&gt;&lt;span&gt;&lt;span&gt;S(A∪B)≫S(A)+S(B)S(A \cup B) \gg S(A) + S(B)&lt;/span&gt;&lt;span&gt;&lt;span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;S&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;A&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;∪&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;B&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;≫&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;S&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;A&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;+&lt;/span&gt;&lt;span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span&gt;&lt;/span&gt;&lt;span&gt;S&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;B&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;这意味着&lt;strong&gt;东买一件西买一件往往是最差解&lt;/strong&gt;：你付出了所有机会成本，却没拿到任何乘算收益。所以高手都会在前几个回合认准方向，然后所有决策都为它服务。&lt;/p&gt;&lt;p&gt;&lt;strong&gt;② 什么时候该放弃&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;一旦投入了某个体系，就会掉进沉没成本陷阱：商店不再给你需要的组件，你还是继续等。正确的做法是把「已投入」从决策依据里删掉，只问一句：&lt;strong&gt;从这一回合开始，继续走这条路和换一条路，哪条期望收益更高&lt;/strong&gt;。这跟工程里砍掉一个写了三个月但方向错了的模块是同一道题。&lt;/p&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;沉没成本的信号&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;当你开始用「都做到这里了」说服自己时，说明决策依据已经错了——正确的依据只有「从这一刻起的期望收益」。&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;有意思的是，游戏甚至给了你一个小把手：&lt;strong&gt;右键可以锁定&lt;/strong&gt;——锁定商店商品避免它被刷掉，锁定配方物品阻止自动合成。它把「承诺」这件事做成了显式操作，你随时要回答「我要不要把这个选择固定下来」。&lt;/p&gt;&lt;p&gt;&lt;strong&gt;③ 对冲方差，而不是消除方差&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;商店是随机的，而且随机源不止商店：命中/闪避、暴击、眩晕、物品触发速度都在掷骰子。你无法消除随机，能做的是：优先拿&lt;strong&gt;多用途物品&lt;/strong&gt;，给核心组件准备&lt;strong&gt;可替代的次优解&lt;/strong&gt;，避免搭出一个「缺了某一件就完全不能运转」的脆弱体系。这是把运气的角色从「决定生死」降到「影响效率」。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;五、它为什么能稳住：几处不起眼的平衡设计&lt;a href=&quot;#五它为什么能稳住几处不起眼的平衡设计&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;拆完之后回看，会发现这套系统能长期运转，靠的是一些不太显眼的负反馈设计：&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;每回合固定收入&lt;/strong&gt;：保证你再惨也能慢慢爬起来，不至于经济归零后彻底出局。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;稀有度随回合提升&lt;/strong&gt;：既给了「存钱」一个正当理由，也让落后的玩家有追赶的可能——后期货架上的东西本身就是补偿。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;血量池随回合增长&lt;/strong&gt;：后期单次失败不会直接终结游戏，把「被淘汰」的恐惧从每一局挪到了赛程尾段。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;明确的终点&lt;/strong&gt;：10 胜 / 18 回合的硬上限，让每局都有清晰的收束，不会陷入无限拉锯。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;无计时器 + 强随机 + 快单局&lt;/strong&gt;：单局短、随机因素明显，失败容易被归因为「这把运气不好」而不是「我不行」。对新手体验来说，这是一层看不见的保护垫。&lt;/li&gt;
+&lt;/ul&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;六、映射回 AI 时代：这套机制其实在讲怎么写 agent&lt;a href=&quot;#六映射回-ai-时代这套机制其实在讲怎么写-agent&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;写到这儿我发现一件事：&lt;strong&gt;《背包乱斗》里人类做的事，和我们今天指挥 AI 做的事，几乎是同一道题&lt;/strong&gt;。都是在有限预算下，把一堆零件拼成一个能自动运行的系统；都需要在信息不完整时下注；都要为「自动执行阶段没法插手」提前买单。&lt;/p&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;能重放才谈得上优化&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;准备阶段&lt;br /&gt;&lt;br /&gt;上下文 / 工具 / 规范&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;自动执行&lt;br /&gt;&lt;br /&gt;agent 按上下文跑完&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;结果&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;eval / 回归测试&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;能重放才谈得上优化&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;准备阶段&lt;br /&gt;&lt;br /&gt;上下文 / 工具 / 规范&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;自动执行&lt;br /&gt;&lt;br /&gt;agent 按上下文跑完&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;结果&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span&gt;&lt;p&gt;eval / 回归测试&lt;/p&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;下面是我觉得最值得搬走的几条启发。&lt;/p&gt;&lt;section&gt;&lt;h3&gt;1. 快照对战 ≈ 把状态变成数据，而不是连接&lt;a href=&quot;#1-快照对战--把状态变成数据而不是连接&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;游戏最强的一次抽象，是把「对手」从一条实时连接拆成了一份可保存、可重放、可跨版本留存的快照。多人和并发带来的全部复杂度，就这样消失了。&lt;/p&gt;&lt;p&gt;AI 时代同理：&lt;strong&gt;对话上下文是一条易失的「连接」，文件与产物才是可复用的「数据」&lt;/strong&gt;。当我把子任务的报告、检查结果、中间产物都落成文件，而不是让它们只活在对话历史里，我得到的东西和异步对战一样——可重放、可复核、可交接给下一个 agent，或者未来的自己。&lt;/p&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;可执行结论&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;凡是要被后续步骤使用的东西，都落盘。别指望上下文替你记住它。&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;2. 背包格子 ≈ context window&lt;a href=&quot;#2-背包格子--context-window&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;这是我认为最锋利的一条对应。&lt;/p&gt;&lt;p&gt;游戏里格子不会自动扩容：总共 63 格，起初只解锁 12–14 格，想变多必须花钱买背包类物品。所以它不是「能装多少」的问题，而是&lt;strong&gt;装进去的每一样都在挤掉另一样&lt;/strong&gt;。&lt;/p&gt;&lt;p&gt;context window 一模一样：它不是容量上限，而是&lt;strong&gt;机会成本&lt;/strong&gt;。每个 token 放进去，都会挤掉另一个可能更有用的 token；而且和背包一样，&lt;strong&gt;上下文越长，单位 token 的有效信息密度越低&lt;/strong&gt;。所以评估要不要塞一段资料，正确的问法不是「它有用吗」，而是「它比被它挤掉的那一段更有用吗」——&lt;strong&gt;看单位格子的收益，而不是绝对数值&lt;/strong&gt;。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;3. ★/♦ 相邻激活 ≈ 上下文的局部性&lt;a href=&quot;#3--相邻激活--上下文的局部性&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;游戏把协同做成了空间关系：物品上的槽位只有&lt;strong&gt;挨着&lt;/strong&gt;对应物品才被激活。它不是藏在数值面板里的隐形加成，而是直接摆在网格上——你要么把它安排明白，要么它就不生效。&lt;/p&gt;&lt;p&gt;映射过来是一条很实用的直觉：&lt;strong&gt;相关的信息要挨着放&lt;/strong&gt;。检索回来的片段、代码文件与它的调用方、接口签名和它的使用示例——分散在各处时，模型（和人）都更容易「激活失败」。这也是为什么「一堆看起来都相关的片段」经常不如「少而自洽的一组上下文」有效。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;4. 协同的凸性 ≈ 一致性比覆盖面更重要&lt;a href=&quot;#4-协同的凸性--一致性比覆盖面更重要&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;前面说过：乘算协同里「一整套」的收益远大于「半套之和」，所以东买一件西买一件是最差解。&lt;/p&gt;&lt;p&gt;这在 AI 协作里有个非常具体的翻版：&lt;strong&gt;半个代码库的约定 + 半个过时的文档 + 半套测试，往往比一开始就只给一套自洽的约定更糟&lt;/strong&gt;。模型不会因为你「提供了更多资料」而变强，它更可能因为资料互相矛盾，在两套规范之间随机横跳。&lt;/p&gt;&lt;div&gt;&lt;div&gt;&lt;div&gt;&lt;/div&gt;&lt;div&gt;可执行结论&lt;/div&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;宁可窄而一致，不要广而打架。互相冲突的上下文是负资产。&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;5. 刷新商店 ≈ 用钱买方差，而且价格递增&lt;a href=&quot;#5-刷新商店--用钱买方差而且价格递增&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;刷新的定价是前 4 次每次 1 金、之后每次 2 金——&lt;strong&gt;越刷越贵&lt;/strong&gt;。这个设计直白地告诉你：随机性可以被购买，但购买本身有一条上升的成本曲线。&lt;/p&gt;&lt;p&gt;这对应 AI 实践里的 &lt;strong&gt;best-of-n / 多次采样 / 重跑 rollout&lt;/strong&gt;：多试几次确实能提高拿到好结果的概率，但每次重试都吃掉预算和时间。所以你需要的不是「无限重试」，而是&lt;strong&gt;一条明确的止损线&lt;/strong&gt;——试几次就该接受当前结果，或者干脆换一条思路，而不是在同一策略上把预算烧光。这条和「血量是有限的容错预算」是同一件事的两面。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;6. 卖出返半价 ≈ 沉没成本，和「只算从这一刻起的期望」&lt;a href=&quot;#6-卖出返半价--沉没成本和只算从这一刻起的期望&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;卖出物品只返还半价，所以每一次转向都是有损耗的——这恰好逼你面对那个决策问题：&lt;strong&gt;已经投入的要不要算进下一步的依据里&lt;/strong&gt;。&lt;/p&gt;&lt;p&gt;答案是不能。前面说过：把「我已经为这条路线花了多少」从判断里删掉，只问&lt;strong&gt;从现在开始，继续这条路和换一条路，哪条期望收益更高&lt;/strong&gt;。人类的默认倾向是「都做到这里了」，而对 AI 协作来说更糟的是把这个倾向传染给流程——&lt;strong&gt;因为一个写错的 spec 而反复修补它的 prompt，就是「因为半价回收太亏，所以继续抱着它」&lt;/strong&gt;。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;7. 自动战斗 ≈ 推理期不可干预，所以准备阶段必须摆对&lt;a href=&quot;#7-自动战斗--推理期不可干预所以准备阶段必须摆对&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;战斗一旦开始，玩家零操作空间。这提醒我一件事：&lt;strong&gt;agent 执行阶段也是「自动战斗」&lt;/strong&gt;——它按你给的上下文和工具一路跑下去，你在过程中能做的干预非常有限，而且越晚介入越贵。&lt;/p&gt;&lt;p&gt;所以真正的优化点全部在准备阶段：把规范写清楚、把该给的文件给它、把不该有的干扰移走。&lt;strong&gt;你没法靠事后解释去纠正一次自动执行&lt;/strong&gt;，就像你没法在战斗中把武器挪到该在的位置。&lt;/p&gt;&lt;p&gt;不过这里有一处游戏做得比我们聪明：&lt;strong&gt;战斗是可以确定性重放、也能回看历史的&lt;/strong&gt;。失败因此能被复现、被分析、被拿来做对照——对应到 AI 时代就是 &lt;strong&gt;eval 与回归测试&lt;/strong&gt;：能被重放的失败才叫可调试的失败，否则只是一次性事故。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;8. 18 回合 / 10 胜 ≈ 给 agent 一个停止条件&lt;a href=&quot;#8-18-回合--10-胜--给-agent-一个停止条件&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;游戏有硬性赛程上限和明确胜场目标，所以每一局都会收束。反过来看，AI 项目里最常见的失控方式是&lt;strong&gt;没有停止条件&lt;/strong&gt;——无限重试、无限补充上下文、无限「再优化一下」。&lt;/p&gt;&lt;p&gt;可执行结论：给 agent 和给自己都设一个&lt;strong&gt;回合数 / token 预算 / 完成定义&lt;/strong&gt;。有终点的优化才会变成策略，没终点的优化只会变成消耗。&lt;/p&gt;&lt;/section&gt;&lt;section&gt;&lt;h3&gt;一张对照表&lt;a href=&quot;#一张对照表&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h3&gt;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;游戏里的机制&lt;/th&gt;&lt;th&gt;AI 时代的对应&lt;/th&gt;&lt;th&gt;可执行的结论&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;构筑快照、异步对战&lt;/td&gt;&lt;td&gt;落盘的中间产物、handoff 报告&lt;/td&gt;&lt;td&gt;状态落成文件，别只留在对话里&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;背包格（要靠买扩容）&lt;/td&gt;&lt;td&gt;context window&lt;/td&gt;&lt;td&gt;看信息密度，不看绝对数量&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;★/♦ 相邻激活&lt;/td&gt;&lt;td&gt;上下文的局部性&lt;/td&gt;&lt;td&gt;相关信息挨着放&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;协同是凸的&lt;/td&gt;&lt;td&gt;规范一致性&lt;/td&gt;&lt;td&gt;宁窄而一致，不开「上下文缝合怪」&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;刷新越刷越贵&lt;/td&gt;&lt;td&gt;best-of-n / 重试&lt;/td&gt;&lt;td&gt;买方差要有止损线&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;卖出返半价&lt;/td&gt;&lt;td&gt;沉没成本&lt;/td&gt;&lt;td&gt;只算「从这一刻起」的期望&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;自动战斗零操作&lt;/td&gt;&lt;td&gt;推理期不可干预&lt;/td&gt;&lt;td&gt;优化全部发生在准备阶段&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;战斗可重放&lt;/td&gt;&lt;td&gt;eval / 回归测试&lt;/td&gt;&lt;td&gt;能复现的失败才可调试&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;血量可透支&lt;/td&gt;&lt;td&gt;可回滚的原型与技术债&lt;/td&gt;&lt;td&gt;允许不完美，但要设额度&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;18 回合、10 胜&lt;/td&gt;&lt;td&gt;max_turns / token 预算&lt;/td&gt;&lt;td&gt;给流程一个停止条件&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;免费的元游戏情报&lt;/td&gt;&lt;td&gt;公开的 prompt / 工作流分享&lt;/td&gt;&lt;td&gt;别重复造别人已经验证过的轮子&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;p&gt;一句话收束这一章：&lt;strong&gt;《背包乱斗》是人类在有限预算下做规划的一个微缩模型，而今天我们做的 context engineering、agent 编排、eval，是同一件事的放大版。&lt;/strong&gt; 区别只在于——游戏里背包有 63 格，你的 context window 比它更小。&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;七、我自己的几条心得&lt;a href=&quot;#七我自己的几条心得&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;最后收个尾，记几条我打下来觉得最有用的判断：&lt;/p&gt;&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;前几回合就定基调&lt;/strong&gt;，别等到第 10 回合才想「我要玩什么体系」。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;先看格子，再看数值&lt;/strong&gt;：一件占 4 格的物品要带来足够收益才值得，否则它就是负资产。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;不为单件传说物品拆掉体系&lt;/strong&gt;——除非它能当整个体系的核心。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;每回合问自己一句&lt;/strong&gt;：我现在缺的是强度、是空间，还是钱？&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;攒钱要有目的&lt;/strong&gt;：不产生利息，攒钱是为了等更好的货架，而不是为了「安全感」。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;多看看对面怎么配的&lt;/strong&gt;，异步对战最大的红利就是免费的 meta 情报。放到 AI 时代，就是多看别人公开的 prompt 与工作流。&lt;/li&gt;
+&lt;/ol&gt;&lt;/section&gt;&lt;section&gt;&lt;h2&gt;结语&lt;a href=&quot;#结语&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;《背包乱斗》最让我意外的地方是：它把一个对抗游戏拆成了&lt;strong&gt;一场有明确回合数的资源分配题&lt;/strong&gt;。异步对战去掉了等待和延迟，把博弈压到构筑层；四种资源的互相兑换保证了每个决策都有代价；协同成体系则给了「取舍」这件事足够深的纵深。&lt;/p&gt;&lt;p&gt;更意外的是，玩完之后我发现它对 AI 时代的启发是现成的：&lt;strong&gt;格子就是 context window，摆放就是上下文编排，刷新就是采样，血量就是容错预算，18 回合就是 token 预算，自动战斗就是推理期&lt;/strong&gt;。同一个抽象被这套游戏用几十个小时演示了一遍，还顺便让我在没意识到的情况下练了上千次「在有限资源下做取舍」。&lt;/p&gt;&lt;p&gt;玩它的时候你会不自觉地权衡、比较、下注——这正是它比看上去更耐玩的原因。&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;&lt;em&gt;本文基于个人游玩体验与公开资料（游戏 Wiki、Steam 更新日志）整理，谈的是机制设计层面的理解，不是数值攻略；版本数值以官方资料为准。如果你也对「把游戏当系统来拆」感兴趣，欢迎留言聊聊。&lt;/em&gt;&lt;/p&gt;&lt;/section&gt;&lt;/section&gt;</content:encoded></item><item><title>GPT-6 Astra 换上来之后，我把 skill 删到只剩一个</title><link>https://blog.hypoy.cn/posts/gpt-6/</link><guid isPermaLink="true">https://blog.hypoy.cn/posts/gpt-6/</guid><description>GPT-6 Astra 的文档里点了一句：新模型对 skill 和 AGENTS.md 里的指令更敏感，建议审计模型能读到的所有指令文件。我照这句话把两边的 skill 目录过了一遍，最后只留下 grill-me。</description><pubDate>Mon, 14 Sep 2026 00:00:00 GMT</pubDate><content:encoded>&lt;section&gt;&lt;h1&gt;GPT-6 Astra 换上来之后，我把 skill 删到只剩一个&lt;a href=&quot;#gpt-6-astra-换上来之后我把-skill-删到只剩一个&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h1&gt;&lt;p&gt;把模型换成 gpt-6-astra 之后，我做的第一件事是打开 skill 目录删东西。&lt;/p&gt;&lt;p&gt;原因在官方那份 model guidance 里，有一段话直接点到 skill：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;GPT-6 Astra is stronger at general instruction following than our previous models, giving you greater control over its behavior. It can be more sensitive to instructions contained in skills and other files, such as AGENTS.md. We strongly recommend auditing skills and other files accessible to your model for instructions that could influence its behavior.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;以前看到这种话我是跳过的，觉得属于官方的免责声明。这次没有跳，因为紧跟着的一句把后果说明了：&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;unclear or conflicting guidance in a skill file may cause the model to pause and block work early.&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;模型干着干着停下来、活卡在半路，这种事我以前都算在模型头上。文档的意思是，那可能是我的 skill 文件在起作用。&lt;/p&gt;&lt;section&gt;&lt;h2&gt;我的目录里有什么&lt;a href=&quot;#我的目录里有什么&quot;&gt;&lt;span&gt;#&lt;/span&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;&lt;code&gt;~/.codex/skills&lt;/code&gt; 22 个目录，&lt;code&gt;~/.claude/skills&lt;/code&gt; 9 个。gsap 一家占了 8 个（core、timeline、scrolltrigger、react、plugins、performance、frameworks、utils），obsidian 4 个，剩下是 defuddle、pdf、figma、json-canvas、markdown-to-pdf、summary-skill 这些，其中 pdf 和 figma 是指向 &lt;code&gt;~/.cc-switch/skills&lt;/code&gt; 的软链接。&lt;/p&gt;&lt;p&gt;按文档的口径，这些得分两类看。gsap、obsidian 那种是给模型补知识的，会过期，但不管模型什么时候停。需要审的是规定模型什么时候停、什么时候问、什么时候动手的那几个。&lt;/p&gt;&lt;p&gt;我目录里就有个现成的例子，一件事写了三遍：&lt;/p&gt;
 
 
 
